@@ -16,7 +16,7 @@ test('exactly one WebGL canvas initializes and all presets are interactive', asy
 
   for (const creature of creatures) {
     await page.getByRole('button', { name: creature, exact: true }).click();
-    await expect(page.locator('footer')).toContainText(topology[creature as keyof typeof topology]);
+    await expect(page.locator('footer')).toContainText(topology[creature as keyof typeof topology], { timeout: 3000 });
   }
   await page.screenshot({ path: 'test-results/desktop-all-presets.png', fullPage: true });
 });
@@ -40,4 +40,19 @@ test('mobile layout retains a single canvas and controls', async ({ page }) => {
   await expect(canvas).toBeVisible();
   await expect(page.getByText('Creature', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
+});
+
+test('50k particle baseline stays responsive', async ({ page }) => {
+  await page.goto('/');
+  const canvas = page.locator('.stage canvas[data-marine-renderer="true"]');
+  await expect(canvas).toHaveCount(1);
+  await expect(canvas).toBeVisible();
+  await page.waitForTimeout(250);
+  const elapsed = await page.evaluate(async () => {
+    return new Promise<number>((resolve) => {
+      const start = performance.now();
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now() - start)));
+    });
+  });
+  expect(elapsed).toBeLessThan(1000);
 });
