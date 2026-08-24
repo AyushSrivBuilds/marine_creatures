@@ -7,11 +7,24 @@ const ranges:[keyof Controls,string,number,number,number][]=[['speed','Animation
 
 export default function App(){
   const host=useRef<HTMLDivElement|null>(null),engine=useRef<ParticleRenderer|null>(null);
-  const state=useRef({creature:creatures[0],controls:defaults,paused:false});
+  const pausedRef=useRef(false);
   const [id,setId]=useState<CreatureId>('jellyfish'),[controls,setControls]=useState(defaults),[paused,setPaused]=useState(false);
   const creature=creatures.find(c=>c.id===id)!;
-  state.current={creature,controls,paused};
-  useEffect(()=>{if(!host.current)return;engine.current=new ParticleRenderer(host.current);let raf=0;const loop=()=>{const s=state.current;engine.current?.update(s.creature,s.controls);engine.current?.render(s.paused);raf=requestAnimationFrame(loop)};loop();return()=>{cancelAnimationFrame(raf);engine.current?.dispose();engine.current=null}},[]);
+  pausedRef.current=paused;
+
+  useEffect(()=>{
+    if(!host.current)return;
+    engine.current=new ParticleRenderer(host.current);
+    engine.current.update(creature,controls);
+    let raf=0;
+    const loop=()=>{engine.current?.render(pausedRef.current);raf=requestAnimationFrame(loop)};
+    loop();
+    return()=>{cancelAnimationFrame(raf);engine.current?.dispose();engine.current=null};
+  },[]);
+
+  // React state changes synchronize renderer uniforms; the rAF loop only renders.
+  useEffect(()=>{engine.current?.update(creature,controls)},[creature,controls]);
+
   const set=(k:keyof Controls,v:number)=>setControls(x=>({...x,[k]:v}));
   const reset=()=>{setControls({...defaults,appendages:creature.appendages});setPaused(false)};
   const randomize=()=>setControls(x=>({...x,speed:+(.3+Math.random()*2).toFixed(2),pulse:+(Math.random()*2).toFixed(2),turbulence:+(Math.random()*1.4).toFixed(2),deformation:+(.3+Math.random()*2.4).toFixed(2),hue:Math.random()}));
