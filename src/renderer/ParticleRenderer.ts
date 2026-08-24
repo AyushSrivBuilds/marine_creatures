@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { AfterimagePass } from 'three/examples/jsm/postprocessing/AfterimagePass.js';
 import { vertex, fragment } from '../shaders/particle';
 import type { Creature } from '../creatures/presets';
 import type { Controls } from '../state/controls';
@@ -12,6 +16,9 @@ const isLowPerformanceDevice = () => {
 
 export class ParticleRenderer {
   renderer: THREE.WebGLRenderer;
+  composer: EffectComposer;
+  bloom: UnrealBloomPass;
+  afterimage: AfterimagePass;
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
   material!: THREE.ShaderMaterial;
@@ -36,6 +43,12 @@ export class ParticleRenderer {
     this.renderer.setClearColor(0x030713, 1);
     host.appendChild(this.renderer.domElement);
     this.camera.position.z = 4;
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.1, 0.55, 0.08);
+    this.afterimage = new AfterimagePass(0.85);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(this.afterimage);
     this.resize();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(host);
@@ -46,6 +59,7 @@ export class ParticleRenderer {
     if (this.disposed) return;
     const width = Math.max(1, this.host.clientWidth), height = Math.max(1, this.host.clientHeight);
     this.renderer.setSize(width, height, false);
+    this.composer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }
@@ -80,19 +94,22 @@ export class ParticleRenderer {
     u.uAspectX.value=creature.aspect[0]; u.uAspectY.value=creature.aspect[1]; u.uBody.value=body; u.uParticleSize.value=controls.size;
     u.uHue.value=controls.hue; u.uSaturation.value=controls.saturation; u.uBrightness.value=controls.brightness; u.uGlow.value=controls.glow;
     u.uColorA.value.set(creature.palette[0]); u.uColorB.value.set(creature.palette[1]); u.uColorC.value.set(creature.palette[2]);
+    this.bloom.strength = controls.glow * 1.15;
+    this.bloom.radius = 0.2 + Math.min(controls.glow, 3) * 0.22;
+    this.afterimage.uniforms.damp.value = THREE.MathUtils.lerp(0.55, 0.96, controls.trail);
   }
 
   render(paused: boolean) {
     if (this.disposed || !this.material) return;
     if (!paused) this.material.uniforms.uTime.value=(performance.now()-this.start)/1000;
     this.material.uniforms.uPointerX.value=this.pointer.x*1.5; this.material.uniforms.uPointerY.value=this.pointer.y;
-    this.renderer.render(this.scene,this.camera);
+    this.composer.render();
   }
 
   dispose() {
     if (this.disposed) return; this.disposed=true; this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener('pointermove',this.onPointerMove);
     if(this.points) this.points.geometry.dispose(); if(this.material) this.material.dispose();
-    this.renderer.dispose(); this.renderer.domElement.remove();
+    this.composer.dispose(); this.renderer.dispose(); this.renderer.domElement.remove();
   }
 }
