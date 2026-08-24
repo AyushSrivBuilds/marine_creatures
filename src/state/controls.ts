@@ -1,0 +1,2 @@
+export type Controls={speed:number;scale:number;appendages:number;pulse:number;turbulence:number;size:number;density:number;trail:number;glow:number;hue:number;saturation:number;brightness:number;deformation:number;phase:number};
+export const defaults:Controls={speed:1,scale:1,appendages:12,pulse:1,turbulence:.35,size:2,density:50000,trail:.15,glow:1.1,hue:0,saturation:1,brightness:1,deformation:1,phase:1};

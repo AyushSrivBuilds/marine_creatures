@@ -1,0 +1,14 @@
+export const vertex=`
+attribute float aSeed;attribute float aU;attribute float aV;attribute float aPart;uniform float uTime,uScale,uSpeed,uPulse,uTurbulence,uDeformation,uPhase,uAppendages,uAspectX,uAspectY,uBody,uPointerX,uPointerY;varying float vLife,vDepth,vHue;
+#define PI 3.14159265
+float hash(float n){return fract(sin(n)*43758.5453123);} 
+void main(){float seed=aSeed;float u=aU;float v=aV;float t=uTime*uSpeed;float phase=seed*6.28318*uPhase;float k=9.0*cos(phase*5.0)*sin(phase);float e=cos(phase*3.0)*cos(phase*2.0)*9.0;float mag=length(vec2(k,e));float nonlinear=pow(mag,3.0)/1999.0+1.5-pow(sin(t*.5+phase),3.0)/3.0;float p=pow(max(nonlinear,.02),sin(nonlinear*nonlinear-t+phase));float angle=u*PI*2.0;vec2 pos;
+if(uBody<.5){float r=sqrt(v);pos=vec2(cos(angle)*r*(1.0-.28*v),sin(angle)*r*.8);}
+else if(uBody<1.5){pos=vec2(cos(angle)*(.22+.8*v),v*2.0-1.0);}
+else if(uBody<2.5){float arm=floor(u*uAppendages);float a=(arm/uAppendages)*PI*2.0;float q=fract(u*uAppendages);pos=vec2(cos(a),sin(a))*(.25+q*1.25);pos+=vec2(sin(q*9.+t+phase),cos(q*7.-t*.8))*q*.14;}
+else if(uBody<3.5){pos=vec2((u-.5)*2.5,abs(v-.5)*-1.5+sin(u*PI)*.5);}
+else if(uBody<4.5){float y=v*2.-1.;pos=vec2(sin(y*10.)*.22,y*1.55);}
+else {float y=v*2.-1.;pos=vec2(.45*sin(y*4.2)+.16*sin(y*12.),y*1.35);}
+float wave=sin(pos.x*6.+phase+t)*.08+cos(pos.y*7.-t*.8+phase)*.06;vec2 flow=vec2(sin(t+phase+pos.y*5.),cos(t*.7+phase+pos.x*6.))*uTurbulence*.18;pos+=flow+vec2(wave,-wave*.35)*uDeformation;pos+=vec2(k*.002,e*.002)*p*uDeformation;float pulse=1.+sin(t*1.5+phase)*.08*uPulse;pos*=uScale*pulse;pos.x*=uAspectX;pos.y*=uAspectY;vec2 pointer=vec2(uPointerX,uPointerY);float dist=length(pos-pointer);pos+=normalize(pos-pointer+vec2(.0001))*exp(-dist*4.)*.12*uPulse;vec4 mv=modelViewMatrix*vec4(pos,hash(seed*3.)-.5,1.);gl_PointSize=clamp((1.+hash(seed*8.)*2.)*2.2*(180./-mv.z),1.,12.);gl_Position=projectionMatrix*mv;vLife=v;vDepth=mv.z;vHue=fract(seed*.17+u*0.2);}`;
+export const fragment=`
+uniform float uHue,uSaturation,uBrightness,uGlow;uniform vec3 uColorA,uColorB,uColorC;varying float vLife,vDepth,vHue;vec3 hue(vec3 c,float h){float a=h*6.28318;mat3 m=mat3(0.299,0.587,0.114,0.299,0.587,0.114,0.299,0.587,0.114)+mat3(0.701,-0.299,-0.3,-0.587,0.413,0.588,-0.114,-0.114,0.886)*cos(a)+mat3(0.168,0.330,-0.497,-0.328,0.035,0.292,1.25,-1.05,-0.203)*sin(a);return clamp(m*c,0.,1.);}void main(){vec2 p=gl_PointCoord-.5;float d=length(p)*2.;float core=pow(max(0.,1.-d),1.6);float halo=pow(max(0.,1.-d),.55)*.3*uGlow;vec3 c=mix(uColorA,uColorB,vHue);c=mix(c,uColorC,vLife*.35);c=hue(c,uHue);c*=uBrightness;float alpha=(core+halo)*(.35+.65*(1.-vLife*.35));gl_FragColor=vec4(c*uSaturation,alpha);}`;
