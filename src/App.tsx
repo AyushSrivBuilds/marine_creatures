@@ -3,30 +3,17 @@ import {ParticleRenderer} from './renderer/ParticleRenderer';
 import {creatures,type CreatureId} from './creatures/presets';
 import {defaults,type Controls} from './state/controls';
 
-const ranges:[keyof Controls,string,number,number,number][]=[['speed','Animation speed',0,3,.01],['scale','Body scale',.3,2.5,.01],['appendages','Appendages',0,24,1],['pulse','Pulse',0,3,.01],['turbulence','Turbulence / drift',0,2,.01],['size','Particle size',.5,8,.1],['density','Particle density',10000,100000,5000],['trail','Trail persistence',0,1,.01],['glow','Glow / bloom',0,3,.01],['hue','Hue',0,1,.01],['saturation','Saturation',0,2,.01],['brightness','Brightness',.2,2,.01],['deformation','Math deformation',0,3,.01],['phase','Phase field',.1,3,.01]];
-
+const ranges:[keyof Controls,string,number,number,number][]=[['speed','Animation speed',0,3,.01],['scale','Body scale',.3,2.5,.01],['appendages','Appendages',0,24,1],['pulse','Pulse',0,3,.01],['turbulence','Turbulence / drift',0,2,.01],['size','Particle size',.5,8,.1],['density','Particle density',10000,250000,5000],['trail','Trail persistence',0,1,.01],['glow','Glow / bloom',0,3,.01],['hue','Hue',0,1,.01],['saturation','Saturation',0,2,.01],['brightness','Brightness',.2,2,.01],['deformation','Math deformation',0,3,.01],['phase','Phase field',.1,3,.01]];
+const quality={eco:25000,balanced:50000,high:100000,ultra:250000} as const;
+type Quality=keyof typeof quality;
 export default function App(){
-  const host=useRef<HTMLDivElement|null>(null),engine=useRef<ParticleRenderer|null>(null);
-  const pausedRef=useRef(false);
-  const [id,setId]=useState<CreatureId>('jellyfish'),[controls,setControls]=useState(defaults),[paused,setPaused]=useState(false);
-  const creature=creatures.find(c=>c.id===id)!;
-  pausedRef.current=paused;
-
-  useEffect(()=>{
-    if(!host.current)return;
-    engine.current=new ParticleRenderer(host.current);
-    engine.current.update(creature,controls);
-    let raf=0;
-    const loop=()=>{engine.current?.render(pausedRef.current);raf=requestAnimationFrame(loop)};
-    loop();
-    return()=>{cancelAnimationFrame(raf);engine.current?.dispose();engine.current=null};
-  },[]);
-
-  // React state changes synchronize renderer uniforms; the rAF loop only renders.
-  useEffect(()=>{engine.current?.update(creature,controls)},[creature,controls]);
-
-  const set=(k:keyof Controls,v:number)=>setControls(x=>({...x,[k]:v}));
-  const reset=()=>{setControls({...defaults,appendages:creature.appendages});setPaused(false)};
-  const randomize=()=>setControls(x=>({...x,speed:+(.3+Math.random()*2).toFixed(2),pulse:+(Math.random()*2).toFixed(2),turbulence:+(Math.random()*1.4).toFixed(2),deformation:+(.3+Math.random()*2.4).toFixed(2),hue:Math.random()}));
-  return <main><div ref={host} className="stage"/><header><div><span className="eyebrow">PROCEDURAL BIOLOGY / 001</span><h1>Marine <em>Motion</em></h1></div><div className="transport"><button onClick={()=>setPaused(!paused)}>{paused?'Play':'Pause'}</button><button onClick={reset}>Reset</button><button onClick={randomize}>Randomize</button><button onClick={()=>document.documentElement.requestFullscreen?.()}>Fullscreen</button></div></header><aside><section><label>Creature</label><div className="creatures">{creatures.map(c=><button key={c.id} className={id===c.id?'active':''} onClick={()=>{setId(c.id);setControls({...defaults,appendages:c.appendages})}}>{c.name}</button>)}</div></section><section className="controls">{ranges.map(([k,label,min,max,step])=><div className="control" key={k}><label>{label}<output>{controls[k]}</output></label><input type="range" min={min} max={max} step={step} value={controls[k]} onChange={e=>set(k,+e.target.value)}/></div>)}</section></aside><footer><span>{controls.density.toLocaleString()} PARTICLES</span><span>GPU PARAMETRIC FIELD</span><span>{creature.body.toUpperCase()} TOPOLOGY</span></footer></main>;
-}
+ const host=useRef<HTMLDivElement|null>(null),engine=useRef<ParticleRenderer|null>(null);const pausedRef=useRef(false);
+ const [id,setId]=useState<CreatureId>('jellyfish'),[controls,setControls]=useState(defaults),[paused,setPaused]=useState(false),[fps,setFps]=useState(0),[qualityMode,setQualityMode]=useState<Quality>('balanced');
+ const creature=creatures.find(c=>c.id===id)!;pausedRef.current=paused;
+ useEffect(()=>{if(!host.current)return;engine.current=new ParticleRenderer(host.current);engine.current.update(creature,controls);let raf=0,last=performance.now(),frames=0,mark=last;const loop=()=>{engine.current?.render(pausedRef.current);const now=performance.now();frames++;if(now-mark>=1000){setFps(Math.round(frames*1000/(now-mark)));frames=0;mark=now}last=now;raf=requestAnimationFrame(loop)};loop();return()=>{cancelAnimationFrame(raf);engine.current?.dispose();engine.current=null}},[]);
+ useEffect(()=>{engine.current?.update(creature,controls)},[creature,controls]);
+ const set=(k:keyof Controls,v:number)=>setControls(x=>({...x,[k]:v}));
+ const applyQuality=(q:Quality)=>{setQualityMode(q);setControls(x=>({...x,density:quality[q]}))};
+ const reset=()=>{setControls({...defaults,appendages:creature.appendages,density:quality[qualityMode]});setPaused(false)};
+ const randomize=()=>setControls(x=>({...x,speed:+(.3+Math.random()*2).toFixed(2),pulse:+(Math.random()*2).toFixed(2),turbulence:+(Math.random()*1.4).toFixed(2),deformation:+(.3+Math.random()*2.4).toFixed(2),hue:Math.random()}));
+ return <main><div ref={host} className="stage"/><header><div><span className="eyebrow">PROCEDURAL BIOLOGY / 001</span><h1>Marine <em>Motion</em></h1></div><div className="transport"><button onClick={()=>setPaused(!paused)}>{paused?'Play':'Pause'}</button><button onClick={reset}>Reset</button><button onClick={randomize}>Randomize</button><button onClick={()=>document.documentElement.requestFullscreen?.()}>Fullscreen</button></div></header><aside><section><label>Creature</label><div className="creatures">{creatures.map(c=><button key={c.id} className={id===c.id?'active':''} onClick={()=>{setId(c.id);setControls({...defaults,appendages:c.appendages,density:quality[qualityMode]})}}>{c.name}</button>)}</div></section><section><label>Quality</label><div className="creatures">{(Object.keys(quality) as Quality[]).map(q=><button key={q} className={qualityMode===q?'active':''} onClick={()=>applyQuality(q)}>{q} · {(quality[q]/1000).toFixed(0)}k</button>)}</div></section><section className="controls">{ranges.map(([k,label,min,max,step])=><div className="control" key={k}><label>{label}<output>{controls[k]}</output></label><input type="range" min={min} max={max} step={step} value={controls[k]} onChange={e=>set(k,+e.target.value)}/></div>)}</section></aside><footer><span>{controls.density.toLocaleString()} PARTICLES</span><span>{fps || '—'} FPS</span><span>GPU PARAMETRIC FIELD</span><span>{creature.body.toUpperCase()} TOPOLOGY</span></footer></main>;}
