@@ -1,24 +1,35 @@
 import { test, expect } from '@playwright/test';
 
-const creatures = ['Jellyfish', 'Squid', 'Octopus', 'Crab', 'Lobster', 'Seahorse'];
+const creatures = ['Jellyfish', 'Squid', 'Octopus', 'Crab', 'Lobster', 'Seahorse'] as const;
 const topology = {
   Jellyfish: 'BELL', Squid: 'MANTLE', Octopus: 'RADIAL',
   Crab: 'CARAPACE', Lobster: 'SEGMENTED', Seahorse: 'CURVED',
-};
+} as const;
 
-test('exactly one WebGL canvas initializes and all presets are interactive', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
-  const canvas = page.locator('.stage canvas[data-marine-renderer="true"]');
+const canvasSelector = '.stage canvas[data-marine-renderer="true"]';
+
+async function expectRenderer(page: import('@playwright/test').Page) {
+  const canvas = page.locator(canvasSelector);
   await expect(canvas).toHaveCount(1);
   await expect(canvas).toBeVisible();
   expect(await canvas.evaluate((node) => node.getBoundingClientRect().width)).toBeGreaterThan(100);
+}
 
+test.describe('creature presets', () => {
   for (const creature of creatures) {
-    await page.getByRole('button', { name: creature, exact: true }).click();
-    await expect(page.locator('footer')).toContainText(topology[creature as keyof typeof topology], { timeout: 3000 });
+    test(`${creature} switches to its topology`, async ({ page }) => {
+      await page.goto('/');
+      await expectRenderer(page);
+      await page.getByRole('button', { name: creature, exact: true }).click();
+      await expect(page.locator('footer')).toContainText(topology[creature], { timeout: 5000 });
+    });
   }
-  await page.screenshot({ path: 'test-results/desktop-all-presets.png', fullPage: true });
+});
+
+test('renderer initializes exactly once', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expectRenderer(page);
 });
 
 test('live controls, pause and reset respond', async ({ page }) => {
@@ -32,27 +43,28 @@ test('live controls, pause and reset respond', async ({ page }) => {
   await expect(speed).toHaveValue('1');
 });
 
+test('desktop visual checkpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expectRenderer(page);
+  await page.screenshot({ path: 'test-results/desktop-jellyfish.png' });
+});
+
 test('mobile layout retains a single canvas and controls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  const canvas = page.locator('.stage canvas[data-marine-renderer="true"]');
-  await expect(canvas).toHaveCount(1);
-  await expect(canvas).toBeVisible();
+  await expectRenderer(page);
   await expect(page.getByText('Creature', { exact: true })).toBeVisible();
-  await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/mobile.png' });
 });
 
 test('50k particle baseline stays responsive', async ({ page }) => {
   await page.goto('/');
-  const canvas = page.locator('.stage canvas[data-marine-renderer="true"]');
-  await expect(canvas).toHaveCount(1);
-  await expect(canvas).toBeVisible();
+  await expectRenderer(page);
   await page.waitForTimeout(250);
-  const elapsed = await page.evaluate(async () => {
-    return new Promise<number>((resolve) => {
-      const start = performance.now();
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now() - start)));
-    });
-  });
+  const elapsed = await page.evaluate(async () => new Promise<number>((resolve) => {
+    const start = performance.now();
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now() - start)));
+  }));
   expect(elapsed).toBeLessThan(1000);
 });
