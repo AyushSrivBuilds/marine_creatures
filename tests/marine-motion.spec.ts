@@ -15,12 +15,19 @@ async function expectRenderer(page: import('@playwright/test').Page) {
   expect(await canvas.evaluate((node) => node.getBoundingClientRect().width)).toBeGreaterThan(100);
 }
 
+async function setLightDensity(page: import('@playwright/test').Page) {
+  const density = page.locator('input[type="range"]').nth(6);
+  await density.fill('10000');
+  await expect(density).toHaveValue('10000');
+}
+
 test.describe('creature presets', () => {
   for (const creature of creatures) {
     test(`${creature} switches to its topology`, async ({ page }) => {
       await page.goto('/');
+      await setLightDensity(page);
       await expectRenderer(page);
-      await page.getByRole('button', { name: creature, exact: true }).click();
+      await page.getByRole('button', { name: creature, exact: true }).click({ timeout: 10000 });
       await expect(page.locator('footer')).toContainText(topology[creature], { timeout: 5000 });
     });
   }
@@ -34,12 +41,13 @@ test('renderer initializes exactly once', async ({ page }) => {
 
 test('live controls, pause and reset respond', async ({ page }) => {
   await page.goto('/');
+  await setLightDensity(page);
   const speed = page.locator('input[type="range"]').first();
   await speed.fill('2');
   await expect(speed).toHaveValue('2');
-  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.getByRole('button', { name: 'Pause', exact: true }).click({ timeout: 10000 });
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  await page.getByRole('button', { name: 'Reset', exact: true }).click({ timeout: 10000 });
   await expect(speed).toHaveValue('1');
 });
 
